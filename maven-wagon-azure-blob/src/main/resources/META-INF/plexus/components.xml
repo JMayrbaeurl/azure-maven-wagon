@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component-set>
+  <components>
+    <component>
+      <role>org.apache.maven.wagon.Wagon</role>
+      <role-hint>azureblob</role-hint>
+      <implementation>com.microsoft.windowsazure.maven.AzureBlobWagon</implementation>
+      <instantiation-strategy>per-lookup</instantiation-strategy>
+      <description>AzureBlobWagon</description>
+      <isolated-realm>false</isolated-realm>
+      <configuration>
+      </configuration>
+    </component>
+  </components>
+</component-set>

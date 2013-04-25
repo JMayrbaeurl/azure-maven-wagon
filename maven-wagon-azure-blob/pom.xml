@@ -1,0 +1,88 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.microsoft.windowsazure</groupId>
+	<artifactId>maven-wagon-azure-blob</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<packaging>jar</packaging>
+
+	<name>maven-wagon-azure-blob</name>
+	<url>http://maven.apache.org</url>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<junit.version>4.11</junit.version>
+		<java.version>1.6</java.version>
+		<azureapi.version>0.4.0</azureapi.version>
+		<maven.wagon.version>2.4</maven.wagon.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.apache.maven.wagon</groupId>
+			<artifactId>wagon-provider-api</artifactId>
+			<version>${maven.wagon.version}</version>
+		</dependency>
+	  	<!-- Windows Azure libraries -->
+	  	<dependency>
+	  		<groupId>com.microsoft.windowsazure</groupId>
+	  		<artifactId>microsoft-windowsazure-api</artifactId>
+	  		<version>[${azureapi.version},)</version>
+	  		<exclusions>
+	  			<exclusion>
+	  				<groupId>com.sun.jersey</groupId>
+	  				<artifactId>jersey-client</artifactId>
+	  			</exclusion>
+	  			<exclusion>
+	  				<groupId>com.sun.jersey</groupId>
+	  				<artifactId>jersey-json</artifactId>
+	  			</exclusion>
+	  			<exclusion>
+          			<groupId>javax.mail</groupId>
+          			<artifactId>mail</artifactId>
+        		</exclusion>
+	  		</exclusions>
+	  	</dependency>	
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>${junit.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.maven.wagon</groupId>
+			<artifactId>wagon-provider-test</artifactId>
+			<version>${maven.wagon.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+	
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.0</version>
+				<configuration>
+					<source>${java.version}</source>
+					<target>${java.version}</target>
+				</configuration>
+			</plugin>
+			<!-- 
+			<plugin>
+				<groupId>org.codehaus.plexus</groupId>
+				<artifactId>plexus-component-metadata</artifactId>
+				<executions>
+					<execution>
+						<id>generate</id>
+						<goals>
+							<goal>generate-metadata</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			 --> 
+		</plugins>
+	</build>	
+</project>
