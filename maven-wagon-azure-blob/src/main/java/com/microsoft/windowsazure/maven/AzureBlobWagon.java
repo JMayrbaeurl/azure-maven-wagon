@@ -3,13 +3,6 @@
  */
 package com.microsoft.windowsazure.maven;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.util.ArrayList;
@@ -17,9 +10,11 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.maven.wagon.AbstractWagon;
 import org.apache.maven.wagon.ConnectionException;
+import org.apache.maven.wagon.InputData;
+import org.apache.maven.wagon.OutputData;
 import org.apache.maven.wagon.ResourceDoesNotExistException;
+import org.apache.maven.wagon.StreamWagon;
 import org.apache.maven.wagon.TransferFailedException;
 import org.apache.maven.wagon.authentication.AuthenticationException;
 import org.apache.maven.wagon.authentication.AuthenticationInfo;
@@ -42,7 +37,7 @@ import com.microsoft.windowsazure.services.core.storage.StorageException;
  * role-hint="azureblob"
  * instantiation-strategy="per-lookup"
  */
-public class AzureBlobWagon extends AbstractWagon {
+public class AzureBlobWagon extends StreamWagon {
 
 	private CloudStorageAccount storageAccount = null;
 	
@@ -57,27 +52,26 @@ public class AzureBlobWagon extends AbstractWagon {
 	static final String DEFAULTENDPOINTSPROTOCOL_STRING = "DefaultEndpointsProtocol";
 	
 	/* (non-Javadoc)
-	 * @see org.apache.maven.wagon.Wagon#get(java.lang.String, java.io.File)
+	 * @see org.apache.maven.wagon.StreamWagon#fillInputData(org.apache.maven.wagon.InputData)
 	 */
 	@Override
-	public void get(final String resourceName, final File destination)
+	public void fillInputData(InputData inputData)
 			throws TransferFailedException, ResourceDoesNotExistException,
 			AuthorizationException {
-
-		if (StringUtils.isEmpty(resourceName)) {
-			throw new IllegalArgumentException("Parameter 'resourceName' must not be empty");
-		}
-		
-		if (destination == null)
-			throw new IllegalArgumentException("Parameter 'destination' must not be null");
 		
 		CloudBlockBlob blob = null;
+		String resourceName = inputData.getResource().getName();
 		
 		try {
 			blob = this.blobClient.getBlockBlobReference(resourceName);
 			if (!blob.exists())
 				throw new ResourceDoesNotExistException("Blob with URI '" 
 						+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint());
+			else {
+				inputData.setInputStream(blob.openInputStream());
+				inputData.getResource().setContentLength(blob.getProperties().getLength());
+				inputData.getResource().setLastModified(blob.getProperties().getLastModified().getTime());
+			}
 		} catch (URISyntaxException e) {
 			throw new ResourceDoesNotExistException("Blob with URI '" 
 					+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
@@ -85,136 +79,36 @@ public class AzureBlobWagon extends AbstractWagon {
 			throw new TransferFailedException("Failed to get resource '" + resourceName + 
 					"' from Azure at " + this.storageAccount.getBlobEndpoint(), e);
 		}
-		
-		this.downloadBlobToDestination(blob, destination);
 	}
 
 	/* (non-Javadoc)
-	 * @see org.apache.maven.wagon.Wagon#getIfNewer(java.lang.String, java.io.File, long)
+	 * @see org.apache.maven.wagon.StreamWagon#fillOutputData(org.apache.maven.wagon.OutputData)
 	 */
 	@Override
-	public boolean getIfNewer(final String resourceName, final File destination,
-			long timestamp) throws TransferFailedException,
-			ResourceDoesNotExistException, AuthorizationException {
+	public void fillOutputData(OutputData outputData)
+			throws TransferFailedException {
 		
-		if (StringUtils.isEmpty(resourceName)) {
-			throw new IllegalArgumentException("Parameter 'resourceName' must not be empty");
-		}
-		
-		if (destination == null)
-			throw new IllegalArgumentException("Parameter 'destination' must not be null");
-
 		CloudBlockBlob blob = null;
+		String resourceName = outputData.getResource().getName();
 		
 		try {
 			blob = this.blobClient.getBlockBlobReference(resourceName);
-			if (!blob.exists())
-				throw new ResourceDoesNotExistException("Blob with URI '" 
-						+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint());
+			
+			if (resourceName.contains("/"))
+				blob.getContainer().createIfNotExist();
+			else
+				this.blobClient.getContainerReference("$root").createIfNotExist();
+			
+			outputData.setOutputStream(blob.openOutputStream());
 		} catch (URISyntaxException e) {
-			throw new ResourceDoesNotExistException("Blob with URI '" 
+			throw new TransferFailedException("Blob with URI '" 
 					+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
 		} catch (StorageException e) {
-			throw new TransferFailedException("Failed to get resource '" + resourceName + 
-					"' from Azure at " + this.storageAccount.getBlobEndpoint(), e);
+			throw new TransferFailedException("Failed to put resource '" + resourceName + 
+					"' to Azure at " + this.storageAccount.getBlobEndpoint(), e);
 		}
 		
-		boolean result = blob.getProperties().getLastModified().getTime() > timestamp;
-		
-		if (result) {
-			this.downloadBlobToDestination(blob, destination);
-		}
-		
-		return result;
-	}
-	
-	/**
-	 * @param blob
-	 * @param destination
-	 * @throws TransferFailedException
-	 */
-	private void downloadBlobToDestination(final CloudBlob blob, final File destination) throws TransferFailedException {
-		
-		OutputStream outputStream = null;
-		String resourceName = null;
-		
-		try {
-			resourceName = blob.getName();
-		} catch (URISyntaxException e1) {
-			throw new TransferFailedException("Failed to get Azure blob name", e1);
-		}
-		
-		try {
-			outputStream = new FileOutputStream(destination);
-			blob.download(outputStream);
-		} catch (FileNotFoundException e) {
-			throw new TransferFailedException("Destination file '" + destination.getAbsolutePath() + 
-					"' not found. Can't download Azure blob '" + resourceName + "'", e);
-		} catch (StorageException e) {
-			throw new TransferFailedException("Failed to download Azure blob '" 
-					+ resourceName + "' from " + this.storageAccount.getBlobEndpoint(), e);
-		} catch (IOException e) {
-			throw new TransferFailedException("Failure writing Azure blob '" + 
-					resourceName + "' to local file system at " + destination.getAbsolutePath(), e);
-		}
-		finally {
-			if (outputStream != null) {
-				try {
-					outputStream.close();
-				} catch (IOException ignoreEx) {}
-			}
-		}
-	}
-
-	/* (non-Javadoc)
-	 * @see org.apache.maven.wagon.Wagon#put(java.io.File, java.lang.String)
-	 */
-	@Override
-	public void put(final File source, final String destination)
-			throws TransferFailedException, ResourceDoesNotExistException,
-			AuthorizationException {
-		
-		if (StringUtils.isEmpty(destination)) {
-			throw new IllegalArgumentException("Parameter 'destination' must not be empty");
-		}
-		
-		if (source == null)
-			throw new IllegalArgumentException("Parameter 'source' must not be null");
-		
-		CloudBlockBlob blob = null;
-		
-		try {
-			blob = this.blobClient.getBlockBlobReference(destination);
-			blob.getContainer().createIfNotExist();
-		} catch (URISyntaxException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (StorageException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		InputStream fileStream = null;
-		
-		try {
-			fileStream = new FileInputStream(source);
-			blob.upload(fileStream, source.length());
-		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (StorageException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} finally {
-			if (fileStream != null) {
-				try {
-					fileStream.close();
-				} catch (IOException e) {}
-			}
-		}
+		this.fireTransferDebug( "resource = " + outputData.getResource());
 	}
 
 	/* (non-Javadoc)
@@ -274,7 +168,7 @@ public class AzureBlobWagon extends AbstractWagon {
 	 * @see org.apache.maven.wagon.AbstractWagon#closeConnection()
 	 */
 	@Override
-	protected void closeConnection() throws ConnectionException {
+	public void closeConnection() throws ConnectionException {
 		
 		this.blobClient = null;
 		this.storageAccount = null;
@@ -290,8 +184,12 @@ public class AzureBlobWagon extends AbstractWagon {
 
 		ArrayList<String> result = new ArrayList<String>();
 		
+		String containername = destinationDirectory;
+		if (StringUtils.isEmpty(containername))
+			containername = "$root";
+		
 		try {
-			CloudBlobContainer blobContainer = this.blobClient.getContainerReference(destinationDirectory);
+			CloudBlobContainer blobContainer = this.blobClient.getContainerReference(containername);
 			
 			if (!blobContainer.exists()) {
 				throw new ResourceDoesNotExistException("Blob container/directory with URL '"
@@ -308,10 +206,19 @@ public class AzureBlobWagon extends AbstractWagon {
 					else if (CloudBlobDirectory.class.isAssignableFrom(blob.getClass())) {
 						String blobDirURL = ((CloudBlobDirectory)blob).getUri().toString();
 						if (blobDirURL != null && (blobDirURL.length() > 1) && (blobDirURL.endsWith("/")) )
-							result.add(StringUtils.substringAfterLast(blobDirURL.substring(0, blobDirURL.length()-1), "/"));
+							result.add(StringUtils.substringAfterLast(
+									blobDirURL.substring(0, blobDirURL.length()-1), "/") + "/");
 					}
 				}
 			}
+			
+			if (StringUtils.isEmpty(destinationDirectory)) {
+				Iterator<CloudBlobContainer> iter = this.blobClient.listContainers().iterator();
+				while(iter.hasNext()) {
+					result.add(iter.next().getName() + "/");
+				}
+			}
+			
 		} catch (URISyntaxException e) {
 			throw new ResourceDoesNotExistException("Blob container/directory doesn't exist");
 		} catch (StorageException e) {
