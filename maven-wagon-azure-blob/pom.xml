@@ -20,6 +20,16 @@
 		</license>
 	</licenses>
 	
+	<scm>
+		<connection>scm:git:git@github.com:JMayrbaeurl/azure-maven-wagon.git</connection>
+		<url>scm:git:git@github.com:JMayrbaeurl/azure-maven-wagon.git</url>
+		<developerConnection>scm:git:git@github.com:JMayrbaeurl/azure-maven-wagon.git</developerConnection>
+	</scm>
+	<issueManagement>
+		<system>GitHub</system>
+		<url>https://github.com/JMayrbaeurl/azure-maven-wagon/issues</url>
+	</issueManagement>	
+	
 	<developers>
 		<developer>
 			<id>jurgenma</id>
