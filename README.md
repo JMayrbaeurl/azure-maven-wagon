@@ -1,0 +1,1 @@
+Maven Wagon Provider for Windows Azure Blob storage
