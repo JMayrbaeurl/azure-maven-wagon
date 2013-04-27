@@ -276,15 +276,11 @@ public abstract class AbstractAzureBlobWagonTestCase extends StreamingWagonTestC
 			
 			return blob.getProperties().getLastModified().getTime();
 		} catch (URISyntaxException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return super.getExpectedLastModifiedOnGet(repository, resource);
 		} catch (StorageException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 			return super.getExpectedLastModifiedOnGet(repository, resource);
 		}
 	}
-	
-	
 }

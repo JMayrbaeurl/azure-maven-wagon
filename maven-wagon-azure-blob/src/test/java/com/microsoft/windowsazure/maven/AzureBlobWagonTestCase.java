@@ -4,7 +4,11 @@
 package com.microsoft.windowsazure.maven;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.security.InvalidKeyException;
 import java.util.List;
+import java.util.Properties;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.wagon.ResourceDoesNotExistException;
@@ -12,7 +16,10 @@ import org.apache.maven.wagon.Wagon;
 import org.apache.maven.wagon.authentication.AuthenticationInfo;
 import org.apache.maven.wagon.authorization.AuthorizationException;
 import org.junit.Assert;
-import org.junit.Test;
+
+import com.microsoft.windowsazure.services.blob.client.CloudBlobClient;
+import com.microsoft.windowsazure.services.core.storage.CloudStorageAccount;
+import com.microsoft.windowsazure.services.core.storage.StorageException;
 
 /**
  * @author Jürgen Mayrbäurl
@@ -22,37 +29,20 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	
 	private static String TESTBLOBCONTAINERNAME = "images";
 	
-	// private static boolean testBlobcontainerWasCreated = false;
+	private static String AZURESTORAGE_CONNECTIONSTRING = null;
 	
-	private static String AZURESTORAGE_CONNECTIONSTRING = "DefaultEndpointsProtocol=https;AccountName=mavenwagontests";
+	private static String AZURESTORAGE_ACCOUNTKEY = null;
 	
-	private static String AZURESTORAGE_ACCOUNTKEY = "3kYyZ3oWIH7ty1Edn1MVOqm/R/riLrHpr3MX6Hgs7s+zSU2Zijm45vIcoyw/r+S0xIoI4ezT4n9Yrye98YBwiQ==";
-	
-/*	@BeforeClass
-	public static void setUpBeforeClass() throws Exception {
-
-		// Create Azure Blob container for testing. Since deleting a blob container via API is done 
-		// asynchronously, it's no good idea to do it in each test
-		testBlobcontainerWasCreated = createAzureBlobContainer(TESTBLOBCONTAINERNAME, 
-				CloudStorageAccount.parse(createAzureStorageConnectionStringWithKey(
-						AZURESTORAGE_CONNECTIONSTRING, AZURESTORAGE_ACCOUNTKEY)).createCloudBlobClient());
-	}
-
-	@AfterClass
-	public static void tearDownClass() throws Exception {
-
-		if (testBlobcontainerWasCreated) {
-			deleteAzureBlobContainer(TESTBLOBCONTAINERNAME, CloudStorageAccount.parse(createAzureStorageConnectionStringWithKey(
-					AZURESTORAGE_CONNECTIONSTRING, AZURESTORAGE_ACCOUNTKEY)).createCloudBlobClient());	
-		}
-	}
-*/
 	/* (non-Javadoc)
 	 * @see com.microsoft.windowsazure.maven.AbstractAzureBlobWagonTestCase#getAzureStorageConnectionString()
 	 */
 	@Override
 	protected String getAzureStorageConnectionString() {
 
+		if (AZURESTORAGE_CONNECTIONSTRING == null) {
+			loadTestAzureStorageConfiguration();
+		}
+		
 		return AZURESTORAGE_CONNECTIONSTRING;
 	}
 
@@ -61,6 +51,10 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	 */
 	@Override
 	protected String getAzureStorageAccountKey() {
+		
+		if (AZURESTORAGE_ACCOUNTKEY == null) {
+			loadTestAzureStorageConfiguration();
+		}
 		
 		return AZURESTORAGE_ACCOUNTKEY;
 	}
@@ -77,7 +71,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		return result;
 	}
 	
-	@Test
 	public void testPlexusSetup() throws Exception {
 		
 		this.setupRepositories();
@@ -86,7 +79,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		Assert.assertNotNull(wagon);
 	}
 
-	@Test
 	public void testGetFileListFromImagesContainer() throws Exception {
 		
 		this.setupRepositories();
@@ -112,7 +104,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         }
 	}	
 	
-	@Test
 	public void testGetFileListFromNonExisting() throws Exception {
 		
 		this.setupRepositories();
@@ -128,7 +119,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         }
 	}
 	
-	@Test
 	public void testGetFileListWithWrongKey() throws Exception {
 		
 		this.setupRepositories();
@@ -147,7 +137,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         }
 	}
 	
-	@Test
 	public void testBlobDirectoryNameExtraction() {
 		
 		final String dirName = "https://mavenwagontests.blob.core.windows.net/images/others/";
@@ -155,7 +144,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		Assert.assertEquals("others", StringUtils.substringAfterLast(dirName.substring(0, dirName.length()-1), "/"));
 	}
 	
-	@Test
 	public void testGetImageFromAzure() throws Exception {
 		
 		this.setupRepositories();
@@ -187,7 +175,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         }
 	}
 	
-	@Test
 	public void testPutImageToAzure() throws Exception {
 		
 		this.setupRepositories();
@@ -210,7 +197,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         }
 	}
 	
-	@Test
 	public void testPutImageToAzureNewContainer() throws Exception {
 		
 		this.setupRepositories();
@@ -226,7 +212,6 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         wagon.disconnect();
 	}
 	
-	@Test
 	public void testNonExistingBlob() throws Exception {
 		
 		this.setupRepositories();
@@ -266,5 +251,36 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         	
         	wagon.disconnect();
         }
+	}
+	
+	private static void loadTestAzureStorageConfiguration() {
+		
+		Properties props = new Properties();
+		try {
+			props.load(AzureBlobWagonTestCase.class.getResourceAsStream("/azureteststorage.properties"));
+		} catch (IOException e) {
+			throw new IllegalStateException("No configuration file for testing with Azure Storage found.", e);
+		}
+		
+		if (props.containsKey("maven.wagon.azure.blob.test.account.connectionstring") 
+				&& props.containsKey("maven.wagon.azure.blob.test.account.key")) {
+			AZURESTORAGE_CONNECTIONSTRING = props.getProperty("maven.wagon.azure.blob.test.account.connectionstring");
+			AZURESTORAGE_ACCOUNTKEY = props.getProperty("maven.wagon.azure.blob.test.account.key");
+		}
+		else {
+			throw new IllegalStateException("Invalid Windows Azure storage configuration file");
+		}
+		
+		try {
+			CloudBlobClient client = CloudStorageAccount.parse(AzureBlobWagonTestCase.createAzureStorageConnectionStringWithKey(
+					AZURESTORAGE_CONNECTIONSTRING, AZURESTORAGE_ACCOUNTKEY)).createCloudBlobClient();
+			client.getContainerReference(TESTBLOBCONTAINERNAME).createIfNotExist();
+		} catch (InvalidKeyException e) {
+			throw new IllegalStateException("Invalid Windows Azure storage account key specified", e);
+		} catch (URISyntaxException e) {
+			throw new IllegalStateException("Invalid Windows Azure storage connection string specified", e);
+		} catch (StorageException e) {
+			throw new IllegalStateException("Failure accessing Windows Azure testing storage account", e);
+		}
 	}
 }
