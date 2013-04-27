@@ -7,14 +7,16 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.maven.wagon.WagonTestCase;
+import org.apache.maven.wagon.StreamingWagonTestCase;
+import org.apache.maven.wagon.repository.Repository;
+import org.apache.maven.wagon.resource.Resource;
 
 import com.microsoft.windowsazure.services.blob.client.CloudBlobClient;
 import com.microsoft.windowsazure.services.blob.client.CloudBlockBlob;
 import com.microsoft.windowsazure.services.core.storage.CloudStorageAccount;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
 
-public abstract class AbstractAzureBlobWagonTestCase extends WagonTestCase {
+public abstract class AbstractAzureBlobWagonTestCase extends StreamingWagonTestCase {
 
 	protected CloudBlobClient blobClient;
 	
@@ -259,4 +261,30 @@ public abstract class AbstractAzureBlobWagonTestCase extends WagonTestCase {
 		
 		return exists;
 	}
+
+	/* (non-Javadoc)
+	 * @see org.apache.maven.wagon.WagonTestCase#getExpectedLastModifiedOnGet(org.apache.maven.wagon.repository.Repository, org.apache.maven.wagon.resource.Resource)
+	 */
+	@Override
+	protected long getExpectedLastModifiedOnGet(final Repository repository,
+			final Resource resource) {
+		
+		try {
+			String blobPath = resource.getName();			
+			CloudBlockBlob blob = this.blobClient.getBlockBlobReference(blobPath);
+			blob.downloadAttributes();
+			
+			return blob.getProperties().getLastModified().getTime();
+		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return super.getExpectedLastModifiedOnGet(repository, resource);
+		} catch (StorageException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return super.getExpectedLastModifiedOnGet(repository, resource);
+		}
+	}
+	
+	
 }

@@ -92,7 +92,7 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		this.setupRepositories();
 		
 		Wagon wagon = this.getWagon();
-        wagon.connect( this.testRepository, this.getAuthInfo() );
+		this.connectWagon(wagon);
         
         boolean containerExists = this.containerExists(TESTBLOBCONTAINERNAME);
         boolean created = this.createAzureBlob(TESTBLOBCONTAINERNAME+"/AzureDevCamp.jpg", new File("src/blobs/AzureDevCamp.jpg"));
@@ -108,9 +108,9 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         			this.deleteAzureBlobContainer(TESTBLOBCONTAINERNAME);
         	}
         	
-        	wagon.disconnect();
+        	this.disconnectWagon(wagon);
         }
-	}
+	}	
 	
 	@Test
 	public void testGetFileListFromNonExisting() throws Exception {
@@ -237,5 +237,34 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		Assert.assertFalse(wagon.resourceExists("a/bad/resource/name/that/should/not/exist.txt"));
 		
 		wagon.disconnect();
+	}
+	
+	public void testGetImageFromAzureRootContainer() throws Exception {
+		
+		this.setupRepositories();
+		
+		Wagon wagon = this.getWagon();
+        wagon.connect( this.testRepository, this.getAuthInfo() );
+        
+        boolean created = this.createAzureBlob("$root/AzureDevCamp", 
+        		new File("src/blobs/AzureDevCamp.jpg"));
+        
+        try {
+	        File destDir = new File("target/downloads");
+	        if (!destDir.exists())
+	        	destDir.mkdir();
+	        
+	        File destFile = new File("target/downloads/AzureDevCamp.jpg");
+	        wagon.get("AzureDevCamp", destFile);
+	        Assert.assertTrue(destFile.exists());
+	        
+	        destFile.delete();
+        } finally {
+        	if (created) {
+        		this.deleteAzureBlob("$root/AzureDevCamp");
+        	}
+        	
+        	wagon.disconnect();
+        }
 	}
 }
