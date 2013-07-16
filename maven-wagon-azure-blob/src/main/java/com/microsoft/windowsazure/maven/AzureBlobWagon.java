@@ -136,6 +136,10 @@ public class AzureBlobWagon extends StreamWagon {
 			throw new AuthenticationException(
 					"Azure storage connection string must be specified in URL parameter for repository " + getRepository().getId());
 		} else {
+			if (connectionString.startsWith(AzureBlobWagon.WAGON_PROTOCOL)) {
+				connectionString = connectionString.substring(AzureBlobWagon.WAGON_PROTOCOL.length()+3);
+			}
+			
 			if (!(connectionString.startsWith(AzureBlobWagon.DEFAULTENDPOINTSPROTOCOL_STRING) 
 					||(connectionString.startsWith(AzureBlobWagon.USEDEVELOPMENTSTORAGE_STRING)))) {
 				throw new AuthenticationException(
