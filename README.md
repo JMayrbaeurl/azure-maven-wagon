@@ -21,11 +21,12 @@ Configuration
 		<snapshotRepository>
 			<id>AzureTest</id>
 			<name>AzureTest</name>
-			<url>azureblob://DefaultEndpointsProtocol=https;AccountName=mavenwagontests</url>
+			<url>azureblob://DefaultEndpointsProtocol=https;AccountName=mavenwagontests/tests</url>
 		</snapshotRepository>
 	</distributionManagement>
 
-Note: 'url' tag starts with 'azureblob' which is the wagon protocol for Windows Azure Blob storage. Everything after 'azureblob://' is a valid Windows Azure Storage connection string and contains the Storage account, too.
+Note: 'url' tag starts with 'azureblob' which is the wagon protocol for Windows Azure Blob storage. 
+After 'azureblob://' a valid Windows Azure Storage connection string gets specified, followed by '/' and the name of the blob container to be used.
 
 3) Add Windows Azure Storage credentials to Maven's settings.xml file
 
@@ -36,6 +37,3 @@ Note: 'url' tag starts with 'azureblob' which is the wagon protocol for Windows 
 	</servers>
 
 The 'privateKey' tag contains the Windows Azure Storage account key
-
-*TO DO*: Currently there's no way to specify a root or base container/directory in the Windows Azure Storage account.
-Therefore all files and folders will be put in the root container of the storage account.

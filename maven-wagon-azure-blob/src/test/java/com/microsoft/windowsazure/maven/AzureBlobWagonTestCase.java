@@ -29,6 +29,10 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	
 	private static String TESTBLOBCONTAINERNAME = "images";
 	
+	private static String REPOSITORY_URL = null;
+	
+	private static String BASE_DIRECTORY = null;
+	
 	private static String AZURESTORAGE_CONNECTIONSTRING = null;
 	
 	private static String AZURESTORAGE_ACCOUNTKEY = null;
@@ -44,6 +48,19 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		}
 		
 		return AZURESTORAGE_CONNECTIONSTRING;
+	}
+
+	/* (non-Javadoc)
+	 * @see com.microsoft.windowsazure.maven.AbstractAzureBlobWagonTestCase#getAzureRepositoryUrl()
+	 */
+	@Override
+	protected String getAzureRepositoryUrl() {
+
+		if (REPOSITORY_URL == null) {
+			loadTestAzureStorageConfiguration();
+		}
+		
+		return REPOSITORY_URL;
 	}
 
 	/* (non-Javadoc)
@@ -71,6 +88,14 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		return result;
 	}
 	
+	private String createTestBlobContainername() {
+		
+		if (StringUtils.isNotEmpty(BASE_DIRECTORY)) {
+			return BASE_DIRECTORY.endsWith("/") ? BASE_DIRECTORY + TESTBLOBCONTAINERNAME : BASE_DIRECTORY + "/" + TESTBLOBCONTAINERNAME;
+		} else
+			return TESTBLOBCONTAINERNAME;
+	}
+	
 	public void testPlexusSetup() throws Exception {
 		
 		this.setupRepositories();
@@ -86,8 +111,10 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		Wagon wagon = this.getWagon();
 		this.connectWagon(wagon);
         
-        boolean containerExists = this.containerExists(TESTBLOBCONTAINERNAME);
-        boolean created = this.createAzureBlob(TESTBLOBCONTAINERNAME+"/AzureDevCamp.jpg", new File("src/blobs/AzureDevCamp.jpg"));
+		String testContainername = this.createTestBlobContainername();
+		
+        boolean containerExists = this.containerExists(testContainername);
+        boolean created = this.createAzureBlob(testContainername+"/AzureDevCamp.jpg", new File("src/blobs/AzureDevCamp.jpg"));
 
         try {
 	        List<String> entries = wagon.getFileList(TESTBLOBCONTAINERNAME);
@@ -95,9 +122,9 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	        Assert.assertFalse(entries.isEmpty());
         } finally {
         	if (created) {
-        		this.deleteAzureBlob(TESTBLOBCONTAINERNAME+"/AzureDevCamp.jpg");
+        		this.deleteAzureBlob(testContainername+"/AzureDevCamp.jpg");
         		if (!containerExists)
-        			this.deleteAzureBlobContainer(TESTBLOBCONTAINERNAME);
+        			this.deleteAzureBlobContainer(testContainername);
         	}
         	
         	this.disconnectWagon(wagon);
@@ -151,8 +178,10 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 		Wagon wagon = this.getWagon();
         wagon.connect( this.testRepository, this.getAuthInfo() );
         
+        String testContainername = this.createTestBlobContainername();
+        
         boolean containerExists = this.containerExists(TESTBLOBCONTAINERNAME);
-        boolean created = this.createAzureBlob(TESTBLOBCONTAINERNAME+"/AzureDevCamp.jpg", new File("src/blobs/AzureDevCamp.jpg"));
+        boolean created = this.createAzureBlob(testContainername+"/AzureDevCamp.jpg", new File("src/blobs/AzureDevCamp.jpg"));
         
         try {
 	        File destDir = new File("target/downloads");
@@ -166,7 +195,7 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	        destFile.delete();
         } finally {
         	if (created) {
-        		this.deleteAzureBlob(TESTBLOBCONTAINERNAME+"/AzureDevCamp.jpg");
+        		this.deleteAzureBlob(testContainername+"/AzureDevCamp.jpg");
         		if (!containerExists)
         			this.deleteAzureBlobContainer(TESTBLOBCONTAINERNAME);
         	}
@@ -185,7 +214,8 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
         this.message("Uploading file 'src/blobs/AzureDevCamp.jpg' to Azure storage '"
         		+ this.blobClient.getEndpoint() + "' as 'images/AzureDevCamp1.jpg'");
         
-        final String blobDestination = TESTBLOBCONTAINERNAME+"/AzureDevCamp1.jpg";
+        final String testContainername = this.createTestBlobContainername();
+        final String blobDestination = testContainername + "/AzureDevCamp1.jpg";
         
         try {
 	        wagon.put(new File("src/blobs/AzureDevCamp.jpg"), TESTBLOBCONTAINERNAME+"/AzureDevCamp1.jpg");
@@ -199,17 +229,19 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	
 	public void testPutImageToAzureNewContainer() throws Exception {
 		
-		this.setupRepositories();
-		
-		Wagon wagon = this.getWagon();
-        wagon.connect( this.testRepository, this.getAuthInfo() );
-        
-        final String blobDestination = "newcontainer/images/AzureDevCamp1.jpg";
-        wagon.put(new File("src/blobs/AzureDevCamp.jpg"), blobDestination);
-        Assert.assertTrue(this.blobExists(blobDestination));
-        
-        this.deleteAzureBlobContainer("newcontainer");
-        wagon.disconnect();
+		if (StringUtils.isEmpty(BASE_DIRECTORY)) {
+			this.setupRepositories();
+			
+			Wagon wagon = this.getWagon();
+	        wagon.connect( this.testRepository, this.getAuthInfo() );
+	        
+	        final String blobDestination = "newcontainer/images/AzureDevCamp1.jpg";
+	        wagon.put(new File("src/blobs/AzureDevCamp.jpg"), blobDestination);
+	        Assert.assertTrue(this.blobExists(blobDestination));
+	        
+	        this.deleteAzureBlobContainer("newcontainer");
+	        wagon.disconnect();
+		}
 	}
 	
 	public void testNonExistingBlob() throws Exception {
@@ -226,31 +258,33 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 	
 	public void testGetImageFromAzureRootContainer() throws Exception {
 		
-		this.setupRepositories();
-		
-		Wagon wagon = this.getWagon();
-        wagon.connect( this.testRepository, this.getAuthInfo() );
-        
-        boolean created = this.createAzureBlob("$root/AzureDevCamp", 
-        		new File("src/blobs/AzureDevCamp.jpg"));
-        
-        try {
-	        File destDir = new File("target/downloads");
-	        if (!destDir.exists())
-	        	destDir.mkdir();
+		if (StringUtils.isEmpty(BASE_DIRECTORY)) {
+			this.setupRepositories();
+			
+			Wagon wagon = this.getWagon();
+	        wagon.connect( this.testRepository, this.getAuthInfo() );
 	        
-	        File destFile = new File("target/downloads/AzureDevCamp.jpg");
-	        wagon.get("AzureDevCamp", destFile);
-	        Assert.assertTrue(destFile.exists());
+	        boolean created = this.createAzureBlob("$root/AzureDevCamp", 
+	        		new File("src/blobs/AzureDevCamp.jpg"));
 	        
-	        destFile.delete();
-        } finally {
-        	if (created) {
-        		this.deleteAzureBlob("$root/AzureDevCamp");
-        	}
-        	
-        	wagon.disconnect();
-        }
+	        try {
+		        File destDir = new File("target/downloads");
+		        if (!destDir.exists())
+		        	destDir.mkdir();
+		        
+		        File destFile = new File("target/downloads/AzureDevCamp.jpg");
+		        wagon.get("AzureDevCamp", destFile);
+		        Assert.assertTrue(destFile.exists());
+		        
+		        destFile.delete();
+	        } finally {
+	        	if (created) {
+	        		this.deleteAzureBlob("$root/AzureDevCamp");
+	        	}
+	        	
+	        	wagon.disconnect();
+	        }
+		}
 	}
 	
 	private static void loadTestAzureStorageConfiguration() {
@@ -262,9 +296,17 @@ public class AzureBlobWagonTestCase extends AbstractAzureBlobWagonTestCase {
 			throw new IllegalStateException("No configuration file for testing with Azure Storage found.", e);
 		}
 		
-		if (props.containsKey("maven.wagon.azure.blob.test.account.connectionstring") 
+		if ((props.containsKey("maven.wagon.azure.blob.test.account.connectionstring") 
+				|| (props.containsKey("maven.wagon.azure.blob.test.repository.url")))
 				&& props.containsKey("maven.wagon.azure.blob.test.account.key")) {
-			AZURESTORAGE_CONNECTIONSTRING = props.getProperty("maven.wagon.azure.blob.test.account.connectionstring");
+			
+			if (props.containsKey("maven.wagon.azure.blob.test.repository.url")) {
+				REPOSITORY_URL = props.getProperty("maven.wagon.azure.blob.test.repository.url");
+				AZURESTORAGE_CONNECTIONSTRING = ConnectionStringUtils.storageConnectionString(REPOSITORY_URL);
+				BASE_DIRECTORY = ConnectionStringUtils.blobContainer(REPOSITORY_URL);
+			} else {
+				AZURESTORAGE_CONNECTIONSTRING = props.getProperty("maven.wagon.azure.blob.test.account.connectionstring");
+			}
 			AZURESTORAGE_ACCOUNTKEY = props.getProperty("maven.wagon.azure.blob.test.account.key");
 		}
 		else {

@@ -8,6 +8,7 @@ import java.security.InvalidKeyException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.maven.wagon.ConnectionException;
@@ -41,7 +42,6 @@ public class AzureBlobWagon extends StreamWagon {
 
 	private CloudStorageAccount storageAccount = null;
 	
-	@SuppressWarnings("unused")
 	private String baseBlobContainer = null;
 	
 	private CloudBlobClient blobClient = null;
@@ -65,11 +65,18 @@ public class AzureBlobWagon extends StreamWagon {
 		CloudBlockBlob blob = null;
 		String resourceName = inputData.getResource().getName();
 		
+		String blobName = null;
+		if (StringUtils.isNotEmpty(this.baseBlobContainer)) {
+			blobName = this.baseBlobContainer + 
+					(this.baseBlobContainer.endsWith("/") ? resourceName : ("/" + resourceName));
+		} else
+			blobName = resourceName;
+		
 		try {
-			blob = this.blobClient.getBlockBlobReference(resourceName);
+			blob = this.blobClient.getBlockBlobReference(blobName);
 			if (!blob.exists())
 				throw new ResourceDoesNotExistException("Blob with URI '" 
-						+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint());
+						+ blobName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint());
 			else {
 				inputData.setInputStream(blob.openInputStream());
 				inputData.getResource().setContentLength(blob.getProperties().getLength());
@@ -77,7 +84,7 @@ public class AzureBlobWagon extends StreamWagon {
 			}
 		} catch (URISyntaxException e) {
 			throw new ResourceDoesNotExistException("Blob with URI '" 
-					+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
+					+ blobName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
 		} catch (StorageException e) {
 			throw new TransferFailedException("Failed to get resource '" + resourceName + 
 					"' from Azure at " + this.storageAccount.getBlobEndpoint(), e);
@@ -94,8 +101,15 @@ public class AzureBlobWagon extends StreamWagon {
 		CloudBlockBlob blob = null;
 		String resourceName = outputData.getResource().getName();
 		
+		String blobName = null;
+		if (StringUtils.isNotEmpty(this.baseBlobContainer)) {
+			blobName = this.baseBlobContainer + 
+					(this.baseBlobContainer.endsWith("/") ? resourceName : ("/" + resourceName));
+		} else
+			blobName = resourceName;
+
 		try {
-			blob = this.blobClient.getBlockBlobReference(resourceName);
+			blob = this.blobClient.getBlockBlobReference(blobName);
 			
 			if (resourceName.contains("/"))
 				blob.getContainer().createIfNotExist();
@@ -105,7 +119,7 @@ public class AzureBlobWagon extends StreamWagon {
 			outputData.setOutputStream(blob.openOutputStream());
 		} catch (URISyntaxException e) {
 			throw new TransferFailedException("Blob with URI '" 
-					+ resourceName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
+					+ blobName + "' doesn't exist in Azure at " + this.storageAccount.getBlobEndpoint(), e);
 		} catch (StorageException e) {
 			throw new TransferFailedException("Failed to put resource '" + resourceName + 
 					"' to Azure at " + this.storageAccount.getBlobEndpoint(), e);
@@ -165,7 +179,7 @@ public class AzureBlobWagon extends StreamWagon {
 			throw new ConnectionException("Can not open connection to Azure blob storage account. Invalid key", e);
 		}
 		
-		this.baseBlobContainer = ConnectionStringUtils.blobContainer(connectionString);
+		this.baseBlobContainer = ConnectionStringUtils.blobContainer(this.getRepository().getUrl());
 		
 		this.blobClient = storageAccount.createCloudBlobClient();
 		this.blobClient.setTimeoutInMs(this.getTimeout());	
@@ -181,9 +195,7 @@ public class AzureBlobWagon extends StreamWagon {
 		this.storageAccount = null;
 	}
 
-	/* (non-Javadoc)
-	 * @see org.apache.maven.wagon.AbstractWagon#getFileList(java.lang.String)
-	 */
+/*
 	@Override
 	public List<String> getFileList(final String destinationDirectory)
 			throws TransferFailedException, ResourceDoesNotExistException,
@@ -191,7 +203,9 @@ public class AzureBlobWagon extends StreamWagon {
 
 		ArrayList<String> result = new ArrayList<String>();
 		
-		String containername = destinationDirectory;
+		String containername = StringUtils.isNotEmpty(this.baseBlobContainer) ?
+				this.baseBlobContainer : destinationDirectory;
+		
 		if (StringUtils.isEmpty(containername))
 			containername = "$root";
 		
@@ -237,6 +251,75 @@ public class AzureBlobWagon extends StreamWagon {
 		
 		return result;
 	}
+*/	
+	
+	/* (non-Javadoc)
+	 * @see org.apache.maven.wagon.AbstractWagon#getFileList(java.lang.String)
+	 */
+	@Override
+	public List<String> getFileList(final String destinationDirectory)
+			throws TransferFailedException, ResourceDoesNotExistException,
+			AuthorizationException {
+
+		ArrayList<String> result = new ArrayList<String>();
+		
+		String dirname = destinationDirectory;
+		if (StringUtils.isNotEmpty(this.baseBlobContainer)) {
+			dirname = this.baseBlobContainer + 
+					(this.baseBlobContainer.endsWith("/") ? destinationDirectory : ("/" + destinationDirectory));
+		}
+				
+		try {
+			CloudBlobDirectory blobDir = this.blobClient.getDirectoryReference(dirname);
+						
+			Iterable<ListBlobItem> blobs = blobDir.listBlobs();
+			if (blobs != null) {
+				Iterator<ListBlobItem> iter = blobs.iterator();
+				while(iter.hasNext()) {
+					ListBlobItem blob = iter.next();
+					if (CloudBlob.class.isAssignableFrom(blob.getClass())) {
+						result.add(StringUtils.substringAfterLast(((CloudBlob)blob).getName(), "/"));
+					} else if (CloudBlobDirectory.class.isAssignableFrom(blob.getClass())) {
+						String blobDirURL = ((CloudBlobDirectory)blob).getUri().toString();
+						if (blobDirURL != null && (blobDirURL.length() > 1) && (blobDirURL.endsWith("/")) )
+							result.add(StringUtils.substringAfterLast(
+									blobDirURL.substring(0, blobDirURL.length()-1), "/") + "/");
+					}
+				}
+			}
+			
+			if (StringUtils.isEmpty(destinationDirectory)) {
+				Iterator<CloudBlobContainer> iter = this.blobClient.listContainers().iterator();
+				while(iter.hasNext()) {
+					result.add(iter.next().getName() + "/");
+				}
+			}
+			
+			if (result.isEmpty() && StringUtils.isNotEmpty(this.baseBlobContainer)) {
+				throw new ResourceDoesNotExistException("Blob container/directory with URL '"
+						+ blobDir.getUri().toString() + "' doesn't exist");
+			}
+			
+		} catch (URISyntaxException e) {
+			throw new ResourceDoesNotExistException("Blob container/directory doesn't exist");
+		} catch (StorageException e) {
+			if (StorageErrorCode.ACCESS_DENIED.toString().equals(e.getErrorCode()))
+				throw new AuthorizationException("Failed to authorize access to Azure Blob storage account");
+			else 
+				throw new TransferFailedException("Failed to get file list", e);
+		} catch (NoSuchElementException e) {
+			if (StorageException.class.isAssignableFrom(e.getCause().getClass())) {
+				StorageException storeEx = (StorageException)e.getCause();
+				if (storeEx.getHttpStatusCode() == 403)
+					throw new AuthorizationException("Failed to authorize access to Azure Blob storage account");
+				else 
+					throw new TransferFailedException("Failed to get file list", storeEx);
+			} else
+				throw e;
+		}
+		
+		return result;
+	}	
 
 	/* (non-Javadoc)
 	 * @see org.apache.maven.wagon.AbstractWagon#resourceExists(java.lang.String)
@@ -250,13 +333,20 @@ public class AzureBlobWagon extends StreamWagon {
 		if (StringUtils.isEmpty(resourceName))
 			throw new IllegalArgumentException("Parameter 'resourceName' must not be empty");
 		
+		String blobName = null;
+		if (StringUtils.isNotEmpty(this.baseBlobContainer)) {
+			blobName = this.baseBlobContainer + 
+					(this.baseBlobContainer.endsWith("/") ? resourceName : ("/" + resourceName));
+		} else
+			blobName = resourceName;
+		
 		try {
-			CloudBlockBlob blob = this.blobClient.getBlockBlobReference(resourceName);
+			CloudBlockBlob blob = this.blobClient.getBlockBlobReference(blobName);
 			if (blob.getContainer().getName().length() >= 3) {
 				result = blob.exists();
 			} else {
 				this.fireTransferDebug("Invalid resource name '"
-						+ resourceName + "'. Resource names for Azure blobs must have containers with 3 chars length at least");
+						+ blobName + "'. Resource names for Azure blobs must have containers with 3 chars length at least");
 			}
 		} catch (StorageException e) {
 			throw new TransferFailedException("Can not access blob '" + resourceName + "'", e);

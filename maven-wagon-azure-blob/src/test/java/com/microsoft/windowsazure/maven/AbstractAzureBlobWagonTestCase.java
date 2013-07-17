@@ -63,13 +63,15 @@ public abstract class AbstractAzureBlobWagonTestCase extends StreamingWagonTestC
 		return StringUtils.EMPTY;
 	}
 	
+	protected abstract String getAzureRepositoryUrl();
+	
 	/* (non-Javadoc)
 	 * @see org.apache.maven.wagon.WagonTestCase#getTestRepositoryUrl()
 	 */
 	@Override
 	protected String getTestRepositoryUrl() throws IOException {
 		
-		return this.getAzureStorageConnectionString();
+		return this.getAzureRepositoryUrl();
 	}
 	
 	protected String getAzureStorageConnectionStringWithKey() {
@@ -270,7 +272,14 @@ public abstract class AbstractAzureBlobWagonTestCase extends StreamingWagonTestC
 			final Resource resource) {
 		
 		try {
-			String blobPath = resource.getName();			
+			String blobPath = resource.getName();		
+			
+			String basecontainer = ConnectionStringUtils.blobContainer(this.getAzureRepositoryUrl());
+			if (StringUtils.isNotEmpty(basecontainer)) {
+				blobPath = basecontainer + 
+						(basecontainer.endsWith("/") ? resource.getName() : ("/" + resource.getName()));
+			}
+			
 			CloudBlockBlob blob = this.blobClient.getBlockBlobReference(blobPath);
 			blob.downloadAttributes();
 			
