@@ -11,10 +11,26 @@ Configuration
 			<extension>
 				<groupId>com.microsoft.windowsazure</groupId>
 				<artifactId>maven-wagon-azure-blob</artifactId>
-				<version>1.0.0-SNAPSHOT</version>
+				<version>1.0.0</version>
 			</extension>
 		</extensions>
 	</build>
+	
+2) Add a plugin repository entry in your pom.xml file to be able to download the extension
+
+	<pluginRepositories>
+		<pluginRepository>
+			<id>ExtensionsRepo</id>
+			<url>http://jmamavenrepos.blob.core.windows.net/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</pluginRepository>
+	</pluginRepositories>	
+	
 2) Set up distribution management in your pom.xml file
 
 	<distributionManagement>

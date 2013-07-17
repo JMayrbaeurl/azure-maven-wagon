@@ -4,7 +4,7 @@
 
 	<groupId>com.microsoft.windowsazure</groupId>
 	<artifactId>maven-wagon-azure-blob</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<packaging>jar</packaging>
 
 	<name>maven-wagon-azure-blob</name>
@@ -175,6 +175,15 @@
 				</plugin>
 			</plugins>
 		</pluginManagement>		
+		
+		<extensions>
+			<!-- Eat your own dogfood. Use Azure for distribution -->
+			<extension>
+				<groupId>com.microsoft.windowsazure</groupId>
+				<artifactId>maven-wagon-azure-blob</artifactId>
+				<version>1.0.0</version>
+			</extension>
+		</extensions>
 	</build>	
 	
 	<reporting>
@@ -185,5 +194,31 @@
         		<version>2.6</version>
       		</plugin>
 		</plugins>
-	</reporting>	
+	</reporting>
+
+	<pluginRepositories>
+		<pluginRepository>
+			<id>ExtensionsRepo</id>
+			<url>http://jmamavenrepos.blob.core.windows.net/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</pluginRepository>
+	</pluginRepositories>
+	
+	<distributionManagement>
+		<repository>
+			<id>AzureMavenRepos</id>
+			<name>AzureMavenRepos</name>
+			<url>azureblob://DefaultEndpointsProtocol=https;AccountName=jmamavenrepos/releases</url>
+		</repository>
+		<snapshotRepository>
+			<id>AzureMavenRepos</id>
+			<name>AzureMavenRepos</name>
+			<url>azureblob://DefaultEndpointsProtocol=https;AccountName=jmamavenrepos/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>	
 </project>
