@@ -41,6 +41,9 @@ public class AzureBlobWagon extends StreamWagon {
 
 	private CloudStorageAccount storageAccount = null;
 	
+	@SuppressWarnings("unused")
+	private String baseBlobContainer = null;
+	
 	private CloudBlobClient blobClient = null;
 	
 	public static final String WAGON_PROTOCOL = "azureblob";
@@ -136,9 +139,7 @@ public class AzureBlobWagon extends StreamWagon {
 			throw new AuthenticationException(
 					"Azure storage connection string must be specified in URL parameter for repository " + getRepository().getId());
 		} else {
-			if (connectionString.startsWith(AzureBlobWagon.WAGON_PROTOCOL)) {
-				connectionString = connectionString.substring(AzureBlobWagon.WAGON_PROTOCOL.length()+3);
-			}
+			connectionString = ConnectionStringUtils.storageConnectionString(connectionString);
 			
 			if (!(connectionString.startsWith(AzureBlobWagon.DEFAULTENDPOINTSPROTOCOL_STRING) 
 					||(connectionString.startsWith(AzureBlobWagon.USEDEVELOPMENTSTORAGE_STRING)))) {
@@ -163,6 +164,8 @@ public class AzureBlobWagon extends StreamWagon {
 		} catch (InvalidKeyException e) {
 			throw new ConnectionException("Can not open connection to Azure blob storage account. Invalid key", e);
 		}
+		
+		this.baseBlobContainer = ConnectionStringUtils.blobContainer(connectionString);
 		
 		this.blobClient = storageAccount.createCloudBlobClient();
 		this.blobClient.setTimeoutInMs(this.getTimeout());	
