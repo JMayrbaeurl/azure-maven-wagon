@@ -4,7 +4,7 @@
 
 	<groupId>com.microsoft.windowsazure</groupId>
 	<artifactId>maven-wagon-azure-blob</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>maven-wagon-azure-blob</name>
